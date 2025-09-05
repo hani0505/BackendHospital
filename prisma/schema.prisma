@@ -6,10 +6,69 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Prioridade {
+  URGENTE
+  MODERADO
+  LEVE
+}
+
+enum Status {
+  AGUARDANDO
+  EM_ATENDIMENTO
+  ATENDIDO
+}
+
+enum Especialidade {
+  CARDIOLOGISTA
+  PEDIATRIA
+  ORTOPEDISTA
+}
+
+model Paciente {
+  id           String     @id @default(uuid())
+  nome         String
+  motivo       String
+  prioridade   Prioridade
+  status       Status     @default(AGUARDANDO)
+  dataCadastro DateTime   @default(now())
+
+  atendimento Atendimento[]
+}
+
+model Medico {
+  id            String        @id @default(uuid())
+  nome          String
+  especialidade Especialidade
+  email         String        @unique
+  senha         String
+
+  atendimento Atendimento[]
+}
+
+model Atendente {
+  id    String @id @default(uuid())
+  nome  String
+  email String @unique
+  senha String
+}
+
+model Atendimento {
+  id         String    @id @default(uuid())
+  pacienteId String
+  medicoId   String
+  horaInicio DateTime
+  horaFim    DateTime?
+  status     Status
+
+  medico   Medico   @relation(fields: [medicoId], references: [id])
+  paciente Paciente @relation(fields: [pacienteId], references: [id])
+
+  @@unique([medicoId, pacienteId])
 }
