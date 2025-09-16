@@ -14,13 +14,17 @@ datasource db {
 }
 
 enum Prioridade {
+  EMERGÊNCIA
+  MUITO_URGENTE
   URGENTE
-  MODERADO
-  LEVE
+  POUCO_URGENTE
+  NÃO_URGENTE
 }
 
 enum Status {
   AGUARDANDO
+  AGUARDANDO_TRIAGEM
+  AGUARDANDO_MEDICO
   EM_ATENDIMENTO
   ATENDIDO
 }
@@ -65,7 +69,7 @@ model Atendimento {
   medicoId   String
   horaInicio DateTime
   horaFim    DateTime?
-  status     Status
+  status     Status    @default(EM_ATENDIMENTO)
 
   medico   Medico   @relation(fields: [medicoId], references: [id])
   paciente Paciente @relation(fields: [pacienteId], references: [id])

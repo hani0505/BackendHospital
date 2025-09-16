@@ -5,9 +5,8 @@ import { Prisma  } from '@prisma/client'
 const createSchma = z.object({
     nome: z.string().min(3, "mínimo 3 letras"),
     motivo: z.string(),
-    prioridade: z.enum([   'URGENTE','MODERADO', 'LEVE']),
-    status: z.enum(['AGUARDANDO' , 'EM_ATENDIMENTO', 'ATENDIDO']),
-    
+    prioridade: z.enum(['EMERGÊNCIA','MUITO_URGENTE','URGENTE','POUCO_URGENTE','NÃO_URGENTE']),
+    status: z.enum(['AGUARDANDO','AGUARDANDO_TRIAGEM','AGUARDANDO_MEDICO','EM_ATENDIMENTO','ATENDIDO']),
 })
 
 export const createPacient = async (req,res) => {
@@ -37,7 +36,9 @@ export const getPacient = async (req,res) => {
 export const updatePaciente = async (req,res) => {
     try{
         const {id} = req.params
-        const {status} = createSchma.parse(req.body)
+        const { status } = z.object({
+            status: z.enum(['AGUARDANDO','AGUARDANDO_TRIAGEM','AGUARDANDO_MEDICO','EM_ATENDIMENTO','ATENDIDO'])
+        }).parse(req.body)
         const paciente = await PacientService.patchPaciente(id, status )
         res.json({atualizado: paciente})
     } catch (error){
