@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from 'bcrypt'
+import bcrypt from "bcrypt";
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 export const createDoctor = async (data) => {
   const hashedPassword = await bcrypt.hash(data.senha, 10);
@@ -11,7 +11,7 @@ export const createDoctor = async (data) => {
       nome: data.nome,
       especialidade: data.especialidade,
       email: data.email,
-      senha: data.senha,
+      senha: hashedPassword, // <<< usa o hash
     },
   });
 };
@@ -24,5 +24,11 @@ export const getDoctors = async () => {
       especialidade: true,
       email: true,
     }, // não retorna a senha
+  });
+};
+
+export const getDoctorByEmail = async (email) => {
+  return await prisma.medico.findUnique({
+    where: { email },
   });
 };

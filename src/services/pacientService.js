@@ -29,9 +29,25 @@ export async function getPaciente() {
     })
 }
 
-export const patchPaciente = async (id, novoStatus) => {
-    return await prisma.paciente.update({
-        where: {id},
-        data: {status: novoStatus}
-    })
+export const patchPaciente = async (id, data) => {
+    try {
+        return await prisma.paciente.update({
+            where: { id },
+            data: data
+        });
+    } catch (error) {
+        throw new Error(`Erro ao atualizar paciente: ${error.message}`);
+    }
+}
+// Retorna apenas pacientes com status AGUARDANDO_TRIAGEM
+export async function obterPacientesAguardandoTriagem() {
+  const pacientes = await prisma.paciente.findMany({
+    where: {
+      status: "AGUARDANDO_TRIAGEM"
+    },
+    orderBy: {
+      dataCadastro: "asc"
+    }
+  });
+  return pacientes;
 }

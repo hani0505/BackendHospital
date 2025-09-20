@@ -73,6 +73,4 @@ model Atendimento {
 
   medico   Medico   @relation(fields: [medicoId], references: [id])
   paciente Paciente @relation(fields: [pacienteId], references: [id])
-
-  @@unique([medicoId, pacienteId])
 }

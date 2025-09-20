@@ -3,123 +3,88 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 export async function iniciarAtendimento(pacienteId, medicoId, horaInicio = new Date(), status = "EM_ATENDIMENTO") {
-  // Atualiza o status do paciente
-  await prisma.paciente.update({
-    where: { id: pacienteId },
-    data: { status },
-  });
+  try {
+    const paciente = await prisma.paciente.findUnique({ where: { id: pacienteId } });
+    if (!paciente) throw new Error("Paciente não encontrado");
 
-  // Cria o atendimento
-  const atendimento = await prisma.atendimento.create({
-    data: {
-      pacienteId,
-      medicoId,
-      horaInicio,
-      status,
-    },
-    include: {
-      paciente: true,
-      medico: true,
-    },
-  });
+    const medico = await prisma.medico.findUnique({ where: { id: medicoId } });
+    if (!medico) throw new Error("Médico não encontrado");
 
-  return atendimento;
+    await prisma.paciente.update({ where: { id: pacienteId }, data: { status: 'EM_ATENDIMENTO' } });
+
+    const atendimento = await prisma.atendimento.create({
+      data: { pacienteId, medicoId, horaInicio, status },
+      include: { paciente: true, medico: true },
+    });
+
+    return atendimento;
+  } catch (error) {
+    console.error("ERRO no iniciarAtendimento:", error.message);
+    throw new Error(error.message || "Erro ao iniciar atendimento");
+  }
 }
 
-
-export async function finalizarAtendimento(atendimentoId) {
+// services/atendimentoService.js - NOVA função finalizarAtendimento
+// services/atendimentoService.js
+export async function finalizarAtendimento(pacienteId, horaFim = new Date(), status = "ATENDIDO") {
   try {
-    // Buscar atendimento com informações do paciente
-    const atendimento = await prisma.atendimento.findUnique({
-      where: { id: atendimentoId },
-      include: { paciente: true }
+    console.log("Buscando atendimento ativo para paciente:", pacienteId);
+    
+    if (!pacienteId) {
+      throw new Error("ID do paciente não fornecido");
+    }
+
+    // Busca o atendimento ATIVO do paciente
+    const atendimento = await prisma.atendimento.findFirst({
+      where: { 
+        pacienteId: pacienteId,
+        status: "EM_ATENDIMENTO",
+        horaFim: null
+      }
     });
 
-    // Verificações iniciais
     if (!atendimento) {
-      throw new Error('Atendimento não encontrado');
+      throw new Error(`Nenhum atendimento ativo encontrado para o paciente ${pacienteId}`);
     }
 
-    if (atendimento.status === 'ATENDIDO') {
-      throw new Error('Atendimento já finalizado');
-    }
+    console.log("Atendimento encontrado:", atendimento.id);
 
-    // Executar ambas as operações em uma transação
-    const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Finalizar o atendimento
-      const atendimentoFinalizado = await tx.atendimento.update({
-        where: { id: atendimentoId },
-        data: {
-          status: 'ATENDIDO',
-          horaFim: new Date()
-        },
-        include: {
-          paciente: true,
-          medico: true
-        }
-      });
-
-      // 2. Atualizar status do paciente
-      await tx.paciente.update({
-        where: { id: atendimento.pacienteId },
-        data: { status: 'ATENDIDO' }
-      });
-
-      return atendimentoFinalizado;
+    // Atualiza atendimento
+    const finalizado = await prisma.atendimento.update({
+      where: { id: atendimento.id },
+      data: { horaFim, status },
+      include: { paciente: true, medico: true },
     });
 
-    return resultado;
+    // Atualiza status do paciente - CORRIGIDO
+    await prisma.paciente.update({
+      where: { id: pacienteId }, // Usa o pacienteId recebido
+      data: { status: "ATENDIDO" }
+    });
+
+    console.log("Atendimento finalizado com sucesso!");
+    return finalizado;
   } catch (error) {
-    console.error('Erro ao finalizar atendimento:', error);
-    
-    // Melhorar mensagens de erro específicas
-    if (error.code === 'P2025') {
-      throw new Error('Registro não encontrado no banco de dados');
-    }
-    
-    throw new Error(error.message || 'Não foi possível finalizar o atendimento');
+    console.error("ERRO no finalizarAtendimento:", error.message);
+    throw new Error(error.message || "Erro ao finalizar atendimento");
   }
 }
 
 export async function historico(page = 1, pageSize = 10) {
-  try {
-    const skip = (page - 1) * pageSize;
-    
-    //paginação
-    //promisseAll recebe varias promessas o atendimento se refere ao primeira Promisse entqual total a segunda promisse
-    const [atendimentos, total] = await Promise.all([
-      //atendimentos
-      prisma.atendimento.findMany({
-        where: {      OR: [
-        { status: 'ATENDIDO' },
-        { status: 'EM_ATENDIMENTO' }
-      ]
- },
-        include: { paciente: true, medico: true },
-        orderBy: { horaFim: 'desc' },
-        skip: skip,    
-        take: pageSize 
-      }),
-      
-      // total
-      prisma.atendimento.count({
-         where: {      OR: [
-        { status: 'ATENDIDO' },
-        { status: 'EM_ATENDIMENTO' }
-      ]
- }})
-    ]);
+  const skip = (page - 1) * pageSize;
+  const total = await prisma.atendimento.count();
+  const atendimentos = await prisma.atendimento.findMany({
+    skip,
+    take: pageSize,
+    orderBy: { horaInicio: "desc" },
+    include: { paciente: true, medico: true },
+  });
 
-    return {
-      atendimentos,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize)
-    };
-
-  } catch (error) {
-    console.error('Erro ao buscar histórico:', error);
-    throw new Error('Não foi possível carregar o histórico');
-  }
+  return {
+    atendimentos,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.ceil(total / pageSize),
+  };
 }
